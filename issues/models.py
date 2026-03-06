@@ -61,7 +61,8 @@ class Issue(models.Model):
 class IssueReport(models.Model):
     issue = models.ForeignKey(
         Issue, on_delete=models.CASCADE,
-        related_name="reports"
+        related_name="reports",
+        null=True, blank=True
     )
 
     citizen = models.ForeignKey(

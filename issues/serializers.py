@@ -74,3 +74,51 @@ class IssueSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+class MyIssueReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IssueReport
+        fields = [
+            "id",
+            "description",
+            "image_url",
+            "match_score",
+            "is_mismatch",
+            "is_duplicate",
+            "created_at",
+        ]
+        # no citizen field — it's always the logged in user
+
+
+class MyIssueSerializer(serializers.ModelSerializer):
+    ward = WardLiteSerializer(read_only=True)
+    municipal_corp = MunicipalCorpLiteSerializer(read_only=True)
+    dept = DepartmentSerializer(read_only=True)
+    # dept_head = DepartmentHeadSerializer(read_only=True)        
+    # workers = DepartmentWorkerSerializer(many=True, read_only=True)
+    my_report = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Issue
+        fields = [
+            "id",
+            "ward",
+            "municipal_corp",
+            "dept",
+            # "dept_head",
+            # "workers",
+            # "latitude",
+            # "longitude",
+            "severity",
+            "status",
+            "after_image_url",
+            "resolved_at",
+            "my_report",
+            # "created_at",
+            # "updated_at",
+        ]
+
+    def get_my_report(self, obj):
+        user = self.context["request"].user
+        report = obj.reports.filter(citizen=user).first()
+        return MyIssueReportSerializer(report).data if report else None

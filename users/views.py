@@ -117,6 +117,8 @@ class LoginView(APIView):
             {
                 "message": "Login successful",
                 "user": UserSerializer(user).data,  # role comes from DB
+                "access_token": str(refresh.access_token),   # ← add these
+                "refresh_token": str(refresh),      
             },
             status=status.HTTP_200_OK
         )
