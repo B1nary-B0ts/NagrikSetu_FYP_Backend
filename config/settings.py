@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework_simplejwt.token_blacklist',
     # 'django.contrib.gis',
+    "django_celery_results", 
 ]
 
 MIDDLEWARE = [

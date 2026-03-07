@@ -3,7 +3,7 @@ from ai_service_proxy.services.image_loader import load_issue_image
 from geo import models
 from issues.models import IssueReport
 import torch
-import numpy as np
+import clip
 from PIL import Image
 
 
@@ -15,7 +15,7 @@ def generate_embedding(issue_report: IssueReport):
     image_tensor = preprocess(image).unsqueeze(0)
 
     text = issue_report.description or ""
-    text_tokens = np.clip.tokenize([text])
+    text_tokens = clip.tokenize([text])
 
     with torch.no_grad():
         image_features = model.encode_image(image_tensor)
@@ -28,7 +28,7 @@ def generate_embedding(issue_report: IssueReport):
         embedding = (image_features + text_features) / 2
         embedding /= embedding.norm(dim=-1, keepdim=True)
 
-    return embedding.cpu().numpy()[0]
+    return embedding.cpu().numpy()[0].tolist()
 
 
 
@@ -50,53 +50,36 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     )
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-def search_duplicates(embedding, issue, top_k=5):
-    """
-    Searches for duplicate issues using:
-    - CLIP embedding similarity
-    - Ward + municipal corporation filter
-    - Geo-distance sanity check
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-    Returns:
-        (duplicate_issue_id | None, similarity_score | None)
-    """
-
-    results = client.search(
+def search_duplicates(embedding, ward_id, municipal_corp_id, latitude, longitude, top_k=5):
+    results = client.query_points(
         collection_name=COLLECTION_NAME,
-        query_vector=embedding,
+        query=embedding,
         limit=top_k,
         with_payload=True,
         score_threshold=0.85,
         query_filter=Filter(
             must=[
-                FieldCondition(
-                    key="ward_id",
-                    match=MatchValue(value=issue.ward_id),
-                ),
-                FieldCondition(
-                    key="municipal_corp_id",
-                    match=MatchValue(value=issue.municipal_corp_id),
-                ),
+                FieldCondition(key="ward_id", match=MatchValue(value=ward_id)),
+                FieldCondition(key="municipal_corp_id", match=MatchValue(value=municipal_corp_id)),
             ]
         ),
-    )
+    ).points
 
     for hit in results:
         payload = hit.payload
-
-        # Defensive checks (important in early development)
         if not payload:
             continue
 
         distance_km = haversine_distance(
-            float(issue.latitude),
-            float(issue.longitude),
+            float(latitude),
+            float(longitude),
             payload["latitude"],
             payload["longitude"],
         )
 
-        # Final geo gate
-        if distance_km <= 0.5:  # 500 meters
+        if distance_km <= 0.5:
             return payload["issue_id"], hit.score
 
     return None, None

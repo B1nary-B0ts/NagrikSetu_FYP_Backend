@@ -61,11 +61,13 @@ def resolve_department_head(issue, department):
         return None
 
     # 1️⃣ Ward-level
-    dept_head = DepartmentHead.objects.filter(
-        dept=department,
-        ward=issue.ward,
-        municipal_corp=issue.municipal_corp
-    ).select_related("user").first()
+    # Ward-level first (future use when ward boundary data is available)
+    if issue.ward:
+        dept_head = DepartmentHead.objects.filter(
+            dept=department,
+            ward=issue.ward,
+            municipal_corp=issue.municipal_corp
+        ).select_related("user").first()
 
     if dept_head:
         return dept_head
@@ -98,10 +100,15 @@ def run_ai_pipeline(self, issue_report_id):
 
     issue = issue_report.issue
 
+    department_choices = list(
+        Department.objects.values_list("name", flat=True)
+    )
+
     # 1️⃣ Ollama Vision call (LOCAL image path)
     result = analyze_civic_issue(
         image_path=issue_report.local_image_path,
         description=issue_report.description or "",
+        department_choices=department_choices,
     )
 
     logger.info(f"[AI PIPELINE] Ollama result: {result}")
@@ -123,6 +130,9 @@ def run_ai_pipeline(self, issue_report_id):
 
     # 3️⃣ Resolve Department
     department = resolve_department(result.get("department"))
+    if not department:
+        # safety fallback in case Ollama hallucinated despite instructions
+        logger.warning(f"[AI PIPELINE] Department not found: {result.get('department')}")
     issue.dept = department
 
     # 4️⃣ Resolve Department Head
@@ -138,9 +148,9 @@ def run_ai_pipeline(self, issue_report_id):
     else:
         issue.status = "PROCESSING"
 
-    # issue.save(
-    #     update_fields=["dept", "dept_head", "severity", "status"]
-    # )
+    issue.save(
+        update_fields=["dept", "dept_head", "severity", "status"]
+    )
 
     logger.info(
         f"[AI PIPELINE] Completed | "
