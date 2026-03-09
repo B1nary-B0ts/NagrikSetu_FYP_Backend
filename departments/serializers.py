@@ -58,3 +58,18 @@ class DeptHeadIssueSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         report = obj.reports.filter(is_duplicate=False).first()
         return report.image_url if report else None
+    
+class DepartmentWorkerAssignSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="user.name", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    phone = serializers.CharField(source="user.phone", read_only=True)
+
+    class Meta:
+        model = DepartmentWorker
+        fields = [
+            "id",
+            "name",
+            "email",
+            "phone",
+            "available",
+        ]
