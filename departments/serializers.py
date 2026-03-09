@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import Department, DepartmentHead, DepartmentWorker
+from issues.models import Issue
 from users.serializers import UserSerializer
-from geo.serializers import WardSerializer, MunicipalCorporationSerializer
+from geo.serializers import MunicipalCorpLiteSerializer, WardLiteSerializer, WardSerializer, MunicipalCorporationSerializer
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,3 +28,33 @@ class DepartmentWorkerSerializer(serializers.ModelSerializer):
     class Meta:
         model = DepartmentWorker
         fields = ["id", "user", "dept_head", "available"]
+
+class DeptHeadIssueSerializer(serializers.ModelSerializer):
+    ward = WardLiteSerializer(read_only=True)
+    municipal_corp = MunicipalCorpLiteSerializer(read_only=True)
+    dept = DepartmentSerializer(read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    report_count = serializers.IntegerField(read_only=True)  # from annotate
+
+    class Meta:
+        model = Issue
+        fields = [
+            "id",
+            "ward",
+            "municipal_corp",
+            "dept",
+            "latitude",
+            "longitude",
+            "severity",
+            "status",
+            "primary_image",
+            "report_count",
+            "after_image_url",
+            "resolved_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_primary_image(self, obj):
+        report = obj.reports.filter(is_duplicate=False).first()
+        return report.image_url if report else None

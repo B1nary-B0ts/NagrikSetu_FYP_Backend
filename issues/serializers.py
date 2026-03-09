@@ -89,7 +89,6 @@ class MyIssueReportSerializer(serializers.ModelSerializer):
         ]
         # no citizen field — it's always the logged in user
 
-
 class MyIssueSerializer(serializers.ModelSerializer):
     ward = WardLiteSerializer(read_only=True)
     municipal_corp = MunicipalCorpLiteSerializer(read_only=True)
@@ -122,3 +121,29 @@ class MyIssueSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         report = obj.reports.filter(citizen=user).first()
         return MyIssueReportSerializer(report).data if report else None
+    
+class NearbyIssueSerializer(serializers.ModelSerializer):
+    dept = DepartmentSerializer(read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    report_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Issue
+        fields = [
+            "id",
+            "latitude",
+            "longitude",
+            "severity",
+            "status",
+            "dept",
+            "primary_image",   # image to show in map popup
+            "report_count",    # how many citizens reported this
+            "created_at",
+        ]
+
+    def get_primary_image(self, obj):
+        report = obj.reports.filter(is_duplicate=False).first()
+        return report.image_url if report else None
+
+    def get_report_count(self, obj):
+        return obj.reports.count()
