@@ -168,6 +168,79 @@ def run_ai_pipeline(self, issue_report_id):
         "dept_head": dept_head.user.name if dept_head else None,
     }
 
+# ai_service_proxy/tasks/ai_pipeline.py
+
+from celery import shared_task
+from django.utils import timezone
+import logging
+
+from issues.models import Issue
+from departments.models import DepartmentWorker
+from ai_service_proxy.services.ollama_vision_service import verify_issue_resolution as verify_resolution
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    bind=True,
+    queue="ai_queue",
+    autoretry_for=(Exception,),
+    retry_backoff=30,
+    retry_kwargs={"max_retries": 2},
+)
+def verify_issue_resolution(self, issue_id, before_image_path, after_image_path, description):
+    logger.info(f"[RESOLUTION] Verifying resolution for issue={issue_id}")
+
+    issue = Issue.objects.prefetch_related("workers").get(id=issue_id)
+
+    # AI comparison
+    result = verify_resolution(
+        before_image_path=before_image_path,
+        after_image_path=after_image_path,
+        description=description,
+    )
+
+    logger.info(f"[RESOLUTION] Ollama result: {result}")
+
+    if result.get("resolved", False):
+        # ✅ Issue resolved — update status and free workers
+        issue.status = "RESOLVED"
+        issue.resolved_at = timezone.now()
+        issue.save(update_fields=["status", "resolved_at"])
+
+        # make all assigned workers available again
+        worker_ids = issue.workers.values_list("id", flat=True)
+        DepartmentWorker.objects.filter(id__in=worker_ids).update(available=True)
+
+        logger.info(
+            f"[RESOLUTION] Issue={issue_id} marked RESOLVED | "
+            f"Workers freed: {list(worker_ids)}"
+        )
+
+        return {
+            "status": "resolved",
+            "issue_id": issue_id,
+            "confidence": result.get("confidence"),
+            "reasoning": result.get("reasoning"),
+        }
+
+    else:
+        # ❌ Not resolved — revert after image, keep status IN_PROGRESS
+        issue.after_image_url = None
+        issue.save(update_fields=["after_image_url"])
+
+        logger.warning(
+            f"[RESOLUTION] Issue={issue_id} NOT resolved | "
+            f"Reason: {result.get('reasoning')}"
+        )
+
+        return {
+            "status": "not_resolved",
+            "issue_id": issue_id,
+            "confidence": result.get("confidence"),
+            "reasoning": result.get("reasoning"),
+        }
+
 
 
 # from celery import shared_task

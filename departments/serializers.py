@@ -73,3 +73,36 @@ class DepartmentWorkerAssignSerializer(serializers.ModelSerializer):
             "phone",
             "available",
         ]
+
+class WorkerIssueSerializer(serializers.ModelSerializer):
+    ward = WardLiteSerializer(read_only=True)
+    municipal_corp = MunicipalCorpLiteSerializer(read_only=True)
+    dept = DepartmentSerializer(read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    report_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Issue
+        fields = [
+            "id",
+            "ward",
+            "municipal_corp",
+            "dept",
+            "latitude",
+            "longitude",
+            "severity",
+            "status",
+            "primary_image",
+            "report_count",
+            "after_image_url",
+            "resolved_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_primary_image(self, obj):
+        report = obj.reports.filter(is_duplicate=False).first()
+        return report.image_url if report else None
+
+    def get_report_count(self, obj):
+        return obj.reports.count()
