@@ -33,11 +33,12 @@ class ResolveLocationView(APIView):
                 "ward": {
                     "id": result["ward_id"],
                     "name": result["ward_name"]
-                },
+                } if result["ward_id"] else None,
                 "municipal_corporation": {
                     "id": result["municipal_corp_id"],
                     "name": result["municipal_corp_name"]
-                }
+                },
+                "resolved_by": result["resolved_by"]
             },
-            status = status.HTTP_200_OK
+            status=status.HTTP_200_OK
         )
