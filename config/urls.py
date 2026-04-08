@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 import geo.urls
-import users.urls, issues.urls, departments.urls, wards.urls
+import users.urls, issues.urls, departments.urls, wards.urls, municipal_corps.urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,4 +26,5 @@ urlpatterns = [
     path('api/issues/', include(issues.urls)),
     path('api/dept/', include(departments.urls)),
     path('api/ward/', include(wards.urls)),
+    path('api/corp/', include(municipal_corps.urls)),
 ]
